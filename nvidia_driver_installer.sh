@@ -75,16 +75,44 @@ function LOG {
     echo $log_msg >> $LOGFILE
 }
 
+function install_dependencies {
+    # install the dependencies for the various distros
+    local OS_DISTRO=$(get_distro)
+    local OS_VER=$(get_os_version_id)
+
+    if   [ "${OS_DISTRO}" == "rhel" ]; then
+        yum install epel-release dkms libstdc++.i686 -y
+    elif [ "${OS_DISTRO}" == "ubuntu" ]; then
+        apt-get install build-essential gcc-multilib dkms -y
+    elif [ "${OS_DISTRO}" == "FEDORA" ]; then
+        dnf install dkms libstdc++.i686 kernel-devel -y
+    else
+        LOG "ERROR: unable to find the dependencies for distro: ${OS_DISTRO}"
+        LOG "       Please resolve and run again"
+        exit 1
+    fi
+
+    if [ "$?" -eq 0 ];then
+        LOG "INFO: 'install_dependencies()' completed successfully"
+    else
+        LOG "WARN: 'install_dependencies()' did NOT completed successfully"
+        LOG "       Please resolve and run again"
+        exit 1
+    fi
+}
+
 function install_step1 {
     OS_DISTRO=$(get_distro)
     OS_VER=$(get_os_version_id)
 
+    LOG "INFO: starting Nvidia drivers install script"
+    LOG "INFO: Identified OS distribution: ${OS_DISTRO}-${OS_VER}"
+
+    #TODO: fix here to support other distros
     if [ "${OS_DISTRO}" != "rhel" ]; then
         LOG "ERROR: Currently supporting RHEL only. your OS distribution is ${OS_DISTRO}"
+        #exit 1
     fi
-
-    LOG "INFO: starting Nvidia drivers install script"
-    LOG "INFO: Identified OS distribution: ${OS_DISTRO}${OS_VER}"
 
     if ! $(is_nvidia_gpu_exists); then
         LOG "WARN: Unable to find Nvidia GPU. exiting"
@@ -102,6 +130,7 @@ function install_step1 {
         LOG "${found_nouveau}"
     fi
 
+    install_dependencies
     blacklist_nuovo_driver
 
     if [ "${OS_DISTRO}" == "rhel" ]; then
@@ -113,10 +142,13 @@ function install_step1 {
             LOG "INFO: 'dracut' completed successfully"
         else
             LOG "INFO: Please resolve the error manually."
-            LOG "      After resolving, please reboot the system and run"
-            LOG "      TBD"
-            LOG "      to continue this install procedure"
+            LOG "      After resolving, please reboot the system and run this script again"
+            LOG "      to continue this install procedure."
         fi
+    elif [ "${OS_DISTRO}" == "ubuntu" ]; then
+        # TODO:
+        echo NEED TO COMPLETE THIS
+
     fi
 
 }
@@ -194,7 +226,6 @@ function my_scratch_area {
     ls -ltr /usr/lib /usr/lib64 | grep -i nvidia
     rpm -qa | grep -i nvidia
     yum list | grep -i nvidia
-
 
 }
 

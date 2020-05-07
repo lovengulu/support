@@ -45,7 +45,9 @@ function get_os_version_id {
 }
 
 function is_nvidia_gpu_exists {
-    return $(lspci | grep VGA | grep -q "NVIDIA Corporation")
+    # TODO: Confirm again that VGA is not needed to be in the lspci response
+    #return $(lspci | grep VGA | grep -q "NVIDIA Corporation")
+    return $(lspci | grep -q "NVIDIA Corporation")
 }
 
 function is_nvidia_driver_installed {
@@ -76,14 +78,17 @@ function LOG {
 }
 
 function install_dependencies {
+    # TODO: add curl
     # install the dependencies for the various distros
     local OS_DISTRO=$(get_distro)
     local OS_VER=$(get_os_version_id)
 
     if   [ "${OS_DISTRO}" == "rhel" ]; then
         yum install epel-release dkms libstdc++.i686 -y
+        yum install dkms  -y
     elif [ "${OS_DISTRO}" == "ubuntu" ]; then
         apt-get install build-essential gcc-multilib dkms -y
+        apt-get install curl -y
     elif [ "${OS_DISTRO}" == "FEDORA" ]; then
         dnf install dkms libstdc++.i686 kernel-devel -y
     else
@@ -146,11 +151,20 @@ function install_step1 {
             LOG "      to continue this install procedure."
         fi
     elif [ "${OS_DISTRO}" == "ubuntu" ]; then
-        # TODO:
-        echo NEED TO COMPLETE THIS
-
+        if [ $(echo ${OS_VER} | awk -F. '{print $1}') -ge 16 ]; then
+            update-initramfs -u
+            ret_code=$?
+            LOG "INFO: 'update-initramfs' completed with error code: ${ret_code}"
+        fi
     fi
 
+    if [ "${ret_code}" -eq 0 ];then
+        LOG "INFO: action completed successfully"
+    else
+        LOG "INFO: Please resolve the error manually."
+        LOG "      After resolving, please reboot the system and run this script again"
+        LOG "      to continue this install procedure."
+    fi
 }
 
 function install_step2 {
@@ -180,8 +194,8 @@ function install_step2 {
     chmod a+x ${run_filename}
 
     # TODO: it is better to run with '--dkms' so this installs is not lost on kernel upgrade. Unable to get it to work on Centos.
-    # ./${run_filename}  --dkms -s
-    ./${run_filename}  -s
+    ./${run_filename}  --dkms -s
+    # ./${run_filename}  -s
     ret_code=$?
     LOG "INFO: '${run_filename}' completed with error code: ${ret_code}"
     if [ "${ret_code}" -ne 0 ];then

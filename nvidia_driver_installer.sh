@@ -1,19 +1,23 @@
 #!/bin/bash
 
-#NVIDIA Driver installer for GPU cards
-#Parttialy Based on instruction from: https://gist.github.com/wangruohui/df039f0dc434d6486f5d4d098aa52d07
+# NVIDIA Driver installer for hosts with GPU cards
+# The script will install the latest Nvidia driver. However, if an earlier version is needed,
+# set the parameter 'NVIDIA_DRIVER_VER' according the instructions below
+# The code is Based on instruction from: https://gist.github.com/wangruohui/df039f0dc434d6486f5d4d098aa52d07
 #
-#Instructions:
-#run the script first time to perform the actions listed below in install_step1()
-#reboot the system when instructed
-#run the script once again and add parameter '--cont' to continue the install process with the actions listed in install_step2()
+# Instructions:
+# 0. it is assumed that Nvidia driver is NOT already installed.
+# 1. login as root
+# 2. run the script first time. This is to perform the actions listed below in install_step1()
+# 3. reboot the system when instructed.
+# 4. login as root
+# 5. run the script once again and add parameter '--cont' to continue the install process with the actions listed in install_step2()
 #
-#The script will install the latest Nvidia driver. However, if earlier version is needed,
-#set the parameter 'NVIDIA_DRIVER_VER' according the instructions below
-
-# Known issues:
-# - not running with '--dkms' (tested on rhel7). Kernel upgrade require returning this procedure again (or at least running the 'run' file).
-
+#
+# Tested on:
+#     Centos 7, 8
+#     Ubuntu 16.4, 18.04
+#
 #
 # NVIDIA_DRIVER_VER
 #
@@ -26,7 +30,6 @@ NVIDIA_DRIVER_VER=""
 
 # log of this script will be written to the following file
 LOGFILE=/tmp/nvidia_install.log
-
 
 function get_distro {
     if [ -e "/etc/redhat-release" ]; then
@@ -78,7 +81,6 @@ function LOG {
 }
 
 function install_dependencies {
-    # TODO: add curl
     # install the dependencies for the various distros
     local OS_DISTRO=$(get_distro)
     local OS_VER=$(get_os_version_id)
@@ -113,10 +115,11 @@ function install_step1 {
     LOG "INFO: starting Nvidia drivers install script"
     LOG "INFO: Identified OS distribution: ${OS_DISTRO}-${OS_VER}"
 
-    #TODO: fix here to support other distros
-    if [ "${OS_DISTRO}" != "rhel" ]; then
-        LOG "ERROR: Currently supporting RHEL only. your OS distribution is ${OS_DISTRO}"
-        #exit 1
+    supported_os="rhel ubuntu"
+    if [[ " ${supported_os[*]} " != *" ${OS_DISTRO} "* ]]; then
+        LOG "ERROR: Currently supporting only the following OS: ${supported_os}."
+        LOG "------ Your OS distribution is: ${OS_DISTRO}"
+        exit 1
     fi
 
     if ! $(is_nvidia_gpu_exists); then
@@ -170,7 +173,7 @@ function install_step1 {
 function install_step2 {
     nvidia_drivers_page_url='https://www.nvidia.com/en-us/drivers/unix/'
     if [ -z "${NVIDIA_DRIVER_VER}" ]; then
-        # figure out the latest vers
+        # figure out the latest version of the driver
         results=$(curl ${nvidia_drivers_page_url} | grep 'Latest Long Lived Branch Version' | sed -e "s%<[^>]*>%%g" |uniq )
         if [ $(echo "${results}" | wc -l) -eq 1 ];then
              NVIDIA_DRIVER_VER=$(echo "${results}" | sed "s/.*Latest Long Lived Branch Version://" | sed "s/[[:space:]]//g")
@@ -193,9 +196,7 @@ function install_step2 {
     fi
     chmod a+x ${run_filename}
 
-    # TODO: it is better to run with '--dkms' so this installs is not lost on kernel upgrade. Unable to get it to work on Centos.
     ./${run_filename}  --dkms -s
-    # ./${run_filename}  -s
     ret_code=$?
     LOG "INFO: '${run_filename}' completed with error code: ${ret_code}"
     if [ "${ret_code}" -ne 0 ];then
@@ -225,21 +226,4 @@ elif [ $(echo $1 | grep '\-cont') ]; then
      LOG "INFO: install procedure completed successfully."
      LOG "      It is suggested to confirm again by rebooting and running 'nvidia-smi' once again"
 fi
-
-
-
-
-function my_scratch_area {
-    lspci | grep VGA | grep "NVIDIA Corporation" ; echo $?
-
-    lsmod  | grep -i ^nvidia
-    lsmod  | grep -i ^nouveau
-
-    nvidia-smi
-
-    ls -ltr /usr/lib /usr/lib64 | grep -i nvidia
-    rpm -qa | grep -i nvidia
-    yum list | grep -i nvidia
-
-}
 

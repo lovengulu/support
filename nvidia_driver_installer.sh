@@ -91,7 +91,7 @@ function blacklist_nuovo_driver {
         LOG "INFO: creating Blacklist for Nouveau Driver at ${black_list_file}"
         echo 'blacklist nouveau'         >> ${black_list_file}
         echo 'options nouveau modeset=0' >> ${black_list_file}
-    elif [ grep -q 'blacklist nouveau' ${black_list_file} ]; then
+    elif grep -q 'blacklist nouveau' ${black_list_file} ; then
         LOG  "INFO: Nouveau Blacklist file: $black_list_file already exists"
     else
         local file_content=$(grep 'blacklist' ${black_list_file})

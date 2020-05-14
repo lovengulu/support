@@ -157,8 +157,9 @@ function install_step1 {
     fi
 
     if $(is_nvidia_driver_installed); then
-        LOG "INFO: Found Nvidia drivers. Nothing to do."
-        exit 0
+        LOG "INFO: Found Nvidia drivers. If you need to upgrade, you should first remove the old drivers !"
+        read -t 30 -p "Hit <ctrl>C to interrupt. Wait 30 seconds or hit <ENTER> to continue"
+        #exit 0
     fi
 
     if $(is_nouveau_driver_installed); then
@@ -202,37 +203,43 @@ function install_step1 {
 }
 
 function install_step2 {
-    nvidia_drivers_page_url='https://www.nvidia.com/en-us/drivers/unix/'
-    if [ -z "${NVIDIA_DRIVER_VER}" ]; then
-        # figure out the latest version of the driver
-        results=$(curl ${nvidia_drivers_page_url} | grep 'Latest Long Lived Branch Version' | sed -e "s%<[^>]*>%%g" |uniq )
-        if [ $(echo "${results}" | wc -l) -eq 1 ];then
-             NVIDIA_DRIVER_VER=$(echo "${results}" | sed "s/.*Latest Long Lived Branch Version://" | sed "s/[[:space:]]//g")
-        else
-            LOG "ERROR: Unable to find the latest NVIDIA driver from ${nvidia_drivers_page_url}"
-            LOG "       Please locate manually the needed driver and set NVIDIA_DRIVER_VER accordingly"
+
+    if $(is_nvidia_driver_installed); then
+          LOG "WARN: Found Nvidia drivers. If you need to upgrade, you should first remove the old drivers !"
+          LOG "WARN: Skipping Nvidia's latest drivers install"
+    else
+        nvidia_drivers_page_url='https://www.nvidia.com/en-us/drivers/unix/'
+        if [ -z "${NVIDIA_DRIVER_VER}" ]; then
+            # figure out the latest version of the driver
+            results=$(curl ${nvidia_drivers_page_url} | grep 'Latest Long Lived Branch Version' | sed -e "s%<[^>]*>%%g" |uniq )
+            if [ $(echo "${results}" | wc -l) -eq 1 ];then
+                 NVIDIA_DRIVER_VER=$(echo "${results}" | sed "s/.*Latest Long Lived Branch Version://" | sed "s/[[:space:]]//g")
+            else
+                LOG "ERROR: Unable to find the latest NVIDIA driver from ${nvidia_drivers_page_url}"
+                LOG "       Please locate manually the needed driver and set NVIDIA_DRIVER_VER accordingly"
+                exit 1
+            fi
+        fi
+
+        LOG "INFO: Downloading Nvidia drivers ver ${NVIDIA_DRIVER_VER}"
+        NVIDIA_DRIVER_DOWNLOAD_URL="http://us.download.nvidia.com/XFree86/Linux-x86_64/${NVIDIA_DRIVER_VER}/NVIDIA-Linux-x86_64-${NVIDIA_DRIVER_VER}.run"
+        cd /tmp
+        run_filename=$(basename ${NVIDIA_DRIVER_DOWNLOAD_URL})
+        wget ${NVIDIA_DRIVER_DOWNLOAD_URL} --output-document ${run_filename}
+        if [ "$?" -ne "0" ]; then
+            LOG "ERROR: Unable to download file from ${NVIDIA_DRIVER_DOWNLOAD_URL}"
+            LOG "Please resolve and try again"
             exit 1
         fi
-    fi
+        chmod a+x ${run_filename}
 
-    LOG "INFO: Downloading Nvidia drivers ver ${NVIDIA_DRIVER_VER}"
-    NVIDIA_DRIVER_DOWNLOAD_URL="http://us.download.nvidia.com/XFree86/Linux-x86_64/${NVIDIA_DRIVER_VER}/NVIDIA-Linux-x86_64-${NVIDIA_DRIVER_VER}.run"
-    cd /tmp
-    run_filename=$(basename ${NVIDIA_DRIVER_DOWNLOAD_URL})
-    wget ${NVIDIA_DRIVER_DOWNLOAD_URL} --output-document ${run_filename}
-    if [ "$?" -ne "0" ]; then
-        LOG "ERROR: Unable to download file from ${NVIDIA_DRIVER_DOWNLOAD_URL}"
-        LOG "Please resolve and try again"
-        exit 1
-    fi
-    chmod a+x ${run_filename}
-
-    ./${run_filename}  --dkms -s
-    ret_code=$?
-    LOG "INFO: '${run_filename}' completed with error code: ${ret_code}"
-    if [ "${ret_code}" -ne 0 ];then
-        LOG "ERROR: Issue fount while running ${run_filename} from Nvidia. Please resolve manually"
-        exit 1
+        ./${run_filename}  --dkms -s
+        ret_code=$?
+        LOG "INFO: '${run_filename}' completed with error code: ${ret_code}"
+        if [ "${ret_code}" -ne 0 ];then
+            LOG "ERROR: Issue fount while running ${run_filename} from Nvidia. Please resolve manually"
+            exit 1
+        fi
     fi
 
     LOG "Will now run 'nvidia-smi' to verify drivers installed correctly"

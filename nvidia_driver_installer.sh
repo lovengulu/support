@@ -57,11 +57,11 @@ function is_nvidia_gpu_exists {
     CLASS_DISPLAY_VGA=300
     CLASS_DISPLAY_3D=302
     nvidia_devices=$(lspci | grep -i "NVIDIA" | awk '{print $1}' )
-    if [ "$?" == "0" ]; then
+    if [ -n "${nvidia_devices}" ]; then
         for nvid_device in $nvidia_devices; do
             #dev_location=$(echo ${nvid_device} | awk -F. '{print $1}')
-            retcode=$(lspci -n | grep ^${nvid_device} | awk '{print $2}' | tr -d : | egrep -q "${CLASS_DISPLAY_VGA}|${CLASS_DISPLAY_3D}")
-            if ${retcode}; then
+            if lspci -n | grep ^${nvid_device} | awk '{print $2}' | egrep -q "${CLASS_DISPLAY_VGA}|${CLASS_DISPLAY_3D}"
+            then
                 lspci_line=$(lspci | grep  "${nvid_device}" )
                 LOG "INFO: found Nvidia VGA/GPU device: "
                 LOG "..... ${lspci_line} "
@@ -69,11 +69,11 @@ function is_nvidia_gpu_exists {
             fi
         done
     else
-        LOG "WARN: unable to find Nvidia's VGA/GPU devices. (Hint: find such manually using: 'lspci | grep -i Nvidia' )"
+        LOG "WARN: unable to find any Nvidia's devices. (Hint: find such manually using: 'lspci | grep -i Nvidia' )"
         return 1
     fi
 
-    LOG "WARN: unable to find any Nvidia's devices. (Hint: find such manually using: 'lspci | grep -i Nvidia' )"
+    LOG "WARN: unable to find Nvidia's VGA/GPU devices. (Hint: find such manually using: 'lspci | grep -i Nvidia' )"
     return 1
 }
 
@@ -108,6 +108,8 @@ function install_dependencies {
     # install the dependencies for the various distros
     local OS_DISTRO=$(get_distro)
     local OS_VER=$(get_os_version_id)
+
+    LOG "INFO: installing dependencies ..."
 
     if   [ "${OS_DISTRO}" == "rhel" ]; then
         yum install epel-release dkms libstdc++.i686 -y
@@ -147,7 +149,7 @@ function install_step1 {
     fi
 
     if ! $(is_nvidia_gpu_exists); then
-        LOG "WARN: Unable to find Nvidia GPU. exiting"
+        LOG "WARN: exiting script since Nvidia device is not found"
         exit 1
     fi
 

@@ -6,7 +6,8 @@
 # The code is Based on instruction from: https://gist.github.com/wangruohui/df039f0dc434d6486f5d4d098aa52d07
 #
 # Instructions:
-# 0. it is assumed that Nvidia driver is NOT already installed.
+# 0. it is assumed that Nvidia driver is NOT already installed. If Nvidia driver already installed, you will need
+#    to remove the old driver manually.
 # 1. login as root
 # 2. run the script first time. This is to perform the actions listed below in install_step1()
 # 3. reboot the system when instructed.
@@ -29,7 +30,7 @@
 NVIDIA_DRIVER_VER=""
 
 # log of this script will be written to the following file
-LOGFILE=/tmp/nvidia_install.log
+LOGFILE=nvidia_install.log
 
 function get_distro {
     if [ -e "/etc/redhat-release" ]; then
@@ -48,9 +49,32 @@ function get_os_version_id {
 }
 
 function is_nvidia_gpu_exists {
-    # TODO: Confirm again that VGA is not needed to be in the lspci response
-    #return $(lspci | grep VGA | grep -q "NVIDIA Corporation")
-    return $(lspci | grep -q "NVIDIA Corporation")
+    # Figure out if Nvidia GPU/VGA exists in the system
+    # returns:
+    #   0 - found
+    #   1 - not found
+
+    CLASS_DISPLAY_VGA=300
+    CLASS_DISPLAY_3D=302
+    nvidia_devices=$(lspci | grep -i "NVIDIA" | awk '{print $1}' )
+    if [ "$?" == "0" ]; then
+        for nvid_device in $nvidia_devices; do
+            #dev_location=$(echo ${nvid_device} | awk -F. '{print $1}')
+            retcode=$(lspci -n | grep ^${nvid_device} | awk '{print $2}' | tr -d : | egrep -q "${CLASS_DISPLAY_VGA}|${CLASS_DISPLAY_3D}")
+            if ${retcode}; then
+                lspci_line=$(lspci | grep  "${nvid_device}" )
+                LOG "INFO: found Nvidia VGA/GPU device: "
+                LOG "..... ${lspci_line} "
+                return 0
+            fi
+        done
+    else
+        LOG "WARN: unable to find Nvidia's VGA/GPU devices. (Hint: find such manually using: 'lspci | grep -i Nvidia' )"
+        return 1
+    fi
+
+    LOG "WARN: unable to find any Nvidia's devices. (Hint: find such manually using: 'lspci | grep -i Nvidia' )"
+    return 1
 }
 
 function is_nvidia_driver_installed {
@@ -76,8 +100,8 @@ function blacklist_nuovo_driver {
 function LOG {
     DATE=$(date +%Y-%m-%d_%H:%M:%S)
     log_msg="$DATE - ${@:1}"
-    echo $log_msg
-    echo $log_msg >> $LOGFILE
+    echo "$log_msg" >> /dev/stderr
+    echo "$log_msg" >> $LOGFILE
 }
 
 function install_dependencies {

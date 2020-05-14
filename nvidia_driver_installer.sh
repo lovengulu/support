@@ -172,6 +172,7 @@ function install_step1 {
 
     if [ "${OS_DISTRO}" == "rhel" ]; then
         LOG "INFO: running 'dracut --force'"
+        yes | cp -p /boot/initramfs-$(uname -r).img /boot/initramfs-$(uname -r)-nouveau.img
         dracut --force
         ret_code=$?
         LOG "INFO: 'dracut' completed with error code: ${ret_code}"
@@ -184,6 +185,7 @@ function install_step1 {
         fi
     elif [ "${OS_DISTRO}" == "ubuntu" ]; then
         if [ $(echo ${OS_VER} | awk -F. '{print $1}') -ge 16 ]; then
+            LOG "INFO: running 'update-initramfs -u'"
             update-initramfs -u
             ret_code=$?
             LOG "INFO: 'update-initramfs' completed with error code: ${ret_code}"
